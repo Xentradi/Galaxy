@@ -1,11 +1,12 @@
 # GalaxyGuard/trainModel.py
 import numpy as np
+import pickle
 import logging
 import nlpaug.augmenter.word as naw
 import tensorflow as tf
 from tensorflow.keras.preprocessing.text import Tokenizer
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from tensorflow.keras.wrappers.scikit_learn import KerasClassifier
+from scikeras.wrappers import KerasClassifier
 from sklearn.model_selection import GridSearchCV
 from datasets import load_dataset
 
@@ -40,12 +41,12 @@ toxicchat_labels = np.array(toxic_chat['train']['toxicity'])
 logging.info("Extracting texts and labels from Arsive/toxicity_classification_jigsaw...")
 jigsaw_texts = jigsaw_toxicity['train']['comment_text']
 jigsaw_labels = np.array(
-    (jigsaw_toxicity['train']['toxic'] | 
-     jigsaw_toxicity['train']['severe_toxic'] | 
-     jigsaw_toxicity['train']['obscene'] | 
-     jigsaw_toxicity['train']['threat'] | 
-     jigsaw_toxicity['train']['insult'] | 
-     jigsaw_toxicity['train']['identity_hate']).astype(int)
+    (np.array(jigsaw_toxicity['train']['toxic']) | 
+     np.array(jigsaw_toxicity['train']['severe_toxic']) | 
+     np.array(jigsaw_toxicity['train']['obscene']) | 
+     np.array(jigsaw_toxicity['train']['threat']) | 
+     np.array(jigsaw_toxicity['train']['insult']) | 
+     np.array(jigsaw_toxicity['train']['identity_hate'])).astype(int)
 )
 
 # Combine all texts and labels
@@ -54,12 +55,20 @@ all_texts = list(setfit_texts) + list(toxicchat_texts) + list(jigsaw_texts)
 all_labels = np.concatenate((setfit_labels, toxicchat_labels, jigsaw_labels))
 
 # Data augmentation
-aug = naw.SynonymAugmenter(aug_list=["wordnet_synonym", "char_swap"], aug_max=5)
+logging.info("Performing data augmentation...")
+aug = naw.SynonymAug(aug_src='wordnet', aug_max=3)
 
-def augment_text(text):
-  return aug.augment(text)
+def augment_text(text, n=3):
+  return aug.augment(text, n=n)
 
-augmented_texts = [augment_text(text) for text in all_texts]
+augmented_texts = []
+augmented_labels = []
+
+for text, label in zip(all_texts, all_labels):
+  augmented_variations = augment_text(text, n=3)
+  augmented_texts.extend(augmented_variations)
+  augmented_labels.extend([label] * len(augmented_variations))
+
 all_texts.extend(augmented_texts)
 all_labels = np.concatenate((all_labels, all_labels))
 
@@ -74,14 +83,14 @@ padded_sequences = pad_sequences(sequences, maxlen=250)
 logging.info("Defining the model...")
 
 # Hyperparameter tuning
-def create_model(learning_rate=0.001, dropout=0.5):
+def create_model(learning_rate=0.001, dropout_rate=0.5):
   model = tf.keras.models.Sequential([
     tf.keras.layers.Embedding(20000, 128),
     tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64, return_sequences=True)),
     tf.keras.layers.Bidirectional(tf.keras.layers.LSTM(64)),
     tf.keras.layers.GlobalAveragePooling1D(),
     tf.keras.layers.Dense(64, activation='relu'),
-    tf.keras.layers.Dropout(dropout),
+    tf.keras.layers.Dropout(dropout_rate),
     tf.keras.layers.Dense(1, activation='sigmoid')
   ])
   optimizer = tf.keras.optimizers.Adam(learning_rate=learning_rate)
@@ -133,7 +142,7 @@ logging.info("Saving the model...")
 final_model.save('GalaxyGuard.keras')
 
 # Save the tokenizer
-import pickle
+logging.info("Saving the tokenizer...")
 with open('tokenizer.pickle', 'wb') as handle:
   pickle.dump(tokenizer, handle, protocol=pickle.HIGHEST_PROTOCOL)
 logging.info("Tokenizer saved.")
