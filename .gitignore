@@ -22,8 +22,6 @@ lib-cov
 # Coverage directory used by tools like istanbul
 coverage
 *.lcov
-
-# nyc test coverage
 .nyc_output
 
 # Grunt intermediate storage (https://gruntjs.com/creating-plugins#storing-task-files)
@@ -41,8 +39,6 @@ build/Release
 # Dependency directories
 node_modules/
 jspm_packages/
-
-# Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
 
 # TypeScript cache
@@ -128,3 +124,48 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# Misc Apple Crap
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Python-specific ignores
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv/
+
+# Jupyter notebooks
+.ipynb_checkpoints/
+
+# Ignore Keras model files
+*.keras
+*.h5
+
+# Ignore TensorFlow model files
+*.pb
+*.ckpt
