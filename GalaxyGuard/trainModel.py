@@ -99,7 +99,7 @@ param_grid = {
 
 # Perform grid search
 logging.info("Performing grid search...")
-grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=3, verbose=2)
+grid = GridSearchCV(estimator=model, param_grid=param_grid, n_jobs=-1, cv=3, verbose=1)
 grid_result = grid.fit(padded_sequences, all_labels)
 best_params = grid_result.best_params_
 
@@ -126,11 +126,11 @@ callbacks = [
 
 # Train the model
 logging.info("Training the model... (This may take a while)")
-model.fit(padded_sequences, all_labels, epochs=10, batch_size=best_params['batch_size'], shuffle=True, validation_split=0.2, callbacks=callbacks)
+final_model.fit(padded_sequences, all_labels, epochs=10, batch_size=best_params['batch_size'], shuffle=True, validation_split=0.2, callbacks=callbacks)
 
 # Save the model
 logging.info("Saving the model...")
-model.save('GalaxyGuard.keras')
+final_model.save('GalaxyGuard.keras')
 
 # Save the tokenizer
 import pickle
