@@ -1,4 +1,4 @@
-# GalaxyGuard/train_job.py
+# GalaxyGuard/tokenize_job.py
 import boto3
 import logging
 import os
@@ -10,11 +10,6 @@ from sagemaker.utils import sagemaker_timestamp
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Define S3 paths
-s3_input_data = 's3://galaxyguard/data'
-s3_output = 's3://galaxyguard/output'
-checkpoint_s3_uri = 's3://galaxyguard/checkpoints'
 
 # Create SageMaker session
 try:
@@ -63,11 +58,11 @@ except Exception as e:
     logger.error(f"Failed to set source directory: {e}")
     exit(1)
 
-# Define PyTorch estimator
+# Define PyTorch estimator for tokenization
 try:
-    logger.info("Creating PyTorch estimator...")
+    logger.info("Creating PyTorch estimator for tokenization...")
     estimator = PyTorch(
-        entry_point='train.py',
+        entry_point='tokenize.py',
         source_dir=source_s3_uri,
         role='arn:aws:iam::730335179217:role/SageMakerExecutionRole',
         framework_version='1.13.1',
@@ -77,32 +72,20 @@ try:
         instance_type='ml.p3.2xlarge',
         use_spot_instances=True,
         max_wait=86400,
-        hyperparameters={
-            'num_train_epochs': 3,
-            'per_device_train_batch_size': 32,
-            'learning_rate': 5e-5,
-        },
         sagemaker_session=sagemaker_session,
-        output_path=s3_output,
-        metric_definitions=[
-            {'Name': 'eval_loss', 'Regex': 'eval_loss=(.*?);'}
-        ],
     )
-    logger.info("PyTorch estimator created successfully.")
+    logger.info("PyTorch estimator for tokenization created successfully.")
 except Exception as e:
-    logger.error(f"Failed to create PyTorch estimator: {str(e)}")
+    logger.error(f"Failed to create PyTorch estimator for tokenization: {str(e)}")
     exit(1)
 
-# Start training job
+# Start tokenization job
 try:
-    logger.info("Starting training job...")
-    estimator.fit({
-        'train': s3_input_data,
-        'validation': s3_input_data
-    })
-    logger.info("Training job started successfully.")
+    logger.info("Starting tokenization job...")
+    estimator.fit()
+    logger.info("Tokenization job started successfully.")
 except Exception as e:
-    logger.error(f"Failed to start training job: {str(e)}")
+    logger.error(f"Failed to start tokenization job: {str(e)}")
     exit(1)
 finally:
-    logger.info("Training job has been submitted.")
+    logger.info("Tokenization job has been submitted.")
