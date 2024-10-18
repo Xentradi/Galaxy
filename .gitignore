@@ -175,3 +175,4 @@ tf_env/
 # Ignore all files in GalaxyGuard/data and GalaxyGuard/models
 GalaxyGuard/data/
 GalaxyGuard/models/
+.aider*
