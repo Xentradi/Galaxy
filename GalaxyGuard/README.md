@@ -11,7 +11,9 @@ GalaxyGuard is a RESTful API built with TypeScript and Node.js. It leverages the
    OPENAI_API_KEY=your_openai_api_key
    ```
 
-3. **Run the Server**: Start the server by running `npm start` in the `GalaxyGuard` directory.
+3. **Build the Project**: Compile the TypeScript files by running `npm run build` in the `GalaxyGuard` directory.
+
+4. **Run the Server**: Start the server by running `npm start` in the `GalaxyGuard` directory.
 
 ## Endpoints
 
