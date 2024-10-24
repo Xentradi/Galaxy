@@ -3,7 +3,7 @@ export interface ModerationConfig {
     apiKey?: string;
     moderationUrl: string;
   };
-  thresholds: {
+  defaultThresholds: {
     individual: {
       ban: number;
       mute: number;
@@ -24,7 +24,7 @@ const config: ModerationConfig = {
     apiKey: process.env.OPENAI_API_KEY,
     moderationUrl: 'https://api.openai.com/v1/moderations'
   },
-  thresholds: {
+  defaultThresholds: {
     individual: {
       ban: 0.9,
       mute: 0.7,

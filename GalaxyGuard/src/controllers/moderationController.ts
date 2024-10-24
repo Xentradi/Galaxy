@@ -1,6 +1,7 @@
 import {Request, Response} from 'express';
 import axios, {AxiosError} from 'axios';
 import config from '../config/moderation.config';
+import UserSettingsService from '../services/userSettingsService';
 
 interface ModerationResponse {
   flagged: boolean;
@@ -25,16 +26,6 @@ class ModerationError extends Error {
   }
 }
 
-const validateApiKey = (): void => {
-  if (!config.openai.apiKey) {
-    throw new ModerationError(
-      'OpenAI API key is not configured',
-      500,
-      'Please set the OPENAI_API_KEY environment variable'
-    );
-  }
-};
-
 const validateMessage = (message: any): void => {
   if (!message || typeof message !== 'string') {
     throw new ModerationError(
@@ -45,8 +36,8 @@ const validateMessage = (message: any): void => {
   }
 };
 
-const determineAction = (score: number, cumulativeScore: number): Action => {
-  const {individual, cumulative} = config.thresholds;
+const determineAction = (score: number, cumulativeScore: number, thresholds: any): Action => {
+  const {individual, cumulative} = thresholds;
 
   if (score >= individual.ban || cumulativeScore >= cumulative.ban) return 'ban';
   if (score >= individual.mute || cumulativeScore >= cumulative.mute) return 'mute';
@@ -81,10 +72,30 @@ const calculateScores = (moderationResult: ModerationResponse) => {
 const moderateMessage = async (req: Request, res: Response): Promise<void> => {
   try {
     const {message} = req.body;
+    const apiKey = req.headers['x-api-key'] as string;
 
-    // Validate inputs
-    validateApiKey();
+    if (!apiKey) {
+      throw new ModerationError('API key is required', 401);
+    }
+
+    // Get user settings
+    const userSettings = await UserSettingsService.getUserByApiKey(apiKey);
+    if (!userSettings) {
+      throw new ModerationError('Invalid API key', 401);
+    }
+
+    // Validate message
     validateMessage(message);
+
+    // Determine which OpenAI API key to use
+    const openaiApiKey = userSettings.openaiApiKey || config.openai.apiKey;
+    if (!openaiApiKey) {
+      throw new ModerationError(
+        'No OpenAI API key configured',
+        500,
+        'Please set an OpenAI API key in your settings or configure the default key'
+      );
+    }
 
     // Make API request
     let response;
@@ -95,7 +106,7 @@ const moderateMessage = async (req: Request, res: Response): Promise<void> => {
         {
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.openai.apiKey}`,
+            'Authorization': `Bearer ${openaiApiKey}`,
           },
         }
       );
@@ -113,7 +124,7 @@ const moderateMessage = async (req: Request, res: Response): Promise<void> => {
 
     const moderationResult = response.data;
     const {maxScore, maxCategory, normalizedCumulativeScore} = calculateScores(moderationResult);
-    const action = determineAction(maxScore, normalizedCumulativeScore);
+    const action = determineAction(maxScore, normalizedCumulativeScore, userSettings.thresholds);
 
     res.status(200).json({
       action,
