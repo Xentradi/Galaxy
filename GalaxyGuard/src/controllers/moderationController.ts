@@ -1,18 +1,6 @@
 import {Request, Response} from 'express';
 import axios, {AxiosError} from 'axios';
-
-const OPENAI_MODERATION_URL = 'https://api.openai.com/v1/moderations';
-
-// Action thresholds
-const BAN_THRESHOLD = 0.9;
-const MUTE_THRESHOLD = 0.7;
-const DELETE_THRESHOLD = 0.5;
-const WARN_THRESHOLD = 0.3;
-
-const CUMULATIVE_BAN_THRESHOLD = 0.7;
-const CUMULATIVE_MUTE_THRESHOLD = 0.5;
-const CUMULATIVE_DELETE_THRESHOLD = 0.3;
-const CUMULATIVE_WARN_THRESHOLD = 0.2;
+import config from '../config/moderation.config';
 
 interface ModerationResponse {
   flagged: boolean;
@@ -26,79 +14,135 @@ interface ModerationResponse {
 
 type Action = 'allow' | 'warn' | 'delete' | 'mute' | 'ban';
 
+class ModerationError extends Error {
+  constructor(
+    message: string,
+    public statusCode: number = 500,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'ModerationError';
+  }
+}
+
+const validateApiKey = (): void => {
+  if (!config.openai.apiKey) {
+    throw new ModerationError(
+      'OpenAI API key is not configured',
+      500,
+      'Please set the OPENAI_API_KEY environment variable'
+    );
+  }
+};
+
+const validateMessage = (message: any): void => {
+  if (!message || typeof message !== 'string') {
+    throw new ModerationError(
+      'Invalid or missing message',
+      400,
+      'Message must be a non-empty string'
+    );
+  }
+};
+
+const determineAction = (score: number, cumulativeScore: number): Action => {
+  const {individual, cumulative} = config.thresholds;
+
+  if (score >= individual.ban || cumulativeScore >= cumulative.ban) return 'ban';
+  if (score >= individual.mute || cumulativeScore >= cumulative.mute) return 'mute';
+  if (score >= individual.delete || cumulativeScore >= cumulative.delete) return 'delete';
+  if (score >= individual.warn || cumulativeScore >= cumulative.warn) return 'warn';
+  return 'allow';
+};
+
+const calculateScores = (moderationResult: ModerationResponse) => {
+  let maxScore = 0;
+  let maxCategory = '';
+  let cumulativeScore = 0;
+  const categories = Object.entries(moderationResult.category_scores);
+
+  for (const [category, score] of categories) {
+    if (score > maxScore) {
+      maxScore = score;
+      maxCategory = category;
+    }
+    cumulativeScore += score;
+  }
+
+  const normalizedCumulativeScore = cumulativeScore / categories.length;
+
+  return {
+    maxScore,
+    maxCategory,
+    normalizedCumulativeScore
+  };
+};
+
 const moderateMessage = async (req: Request, res: Response): Promise<void> => {
   try {
     const {message} = req.body;
 
-    if (!message || typeof message !== 'string') {
-      res.status(400).json({error: 'Invalid or missing message in request body'});
-      return;
-    }
+    // Validate inputs
+    validateApiKey();
+    validateMessage(message);
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    if (!OPENAI_API_KEY) {
-      res.status(500).json({error: 'OpenAI API key is not set'});
-      return;
-    }
-
-    const response = await axios.post<ModerationResponse>(
-      OPENAI_MODERATION_URL,
-      {input: message},
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${OPENAI_API_KEY}`,
-        },
+    // Make API request
+    let response;
+    try {
+      response = await axios.post<ModerationResponse>(
+        config.openai.moderationUrl,
+        {input: message},
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${config.openai.apiKey}`,
+          },
+        }
+      );
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        const axiosError = error as AxiosError;
+        throw new ModerationError(
+          'OpenAI API request failed',
+          axiosError.response?.status || 500,
+          axiosError.response?.data || axiosError.message
+        );
       }
-    );
+      throw error;
+    }
 
     const moderationResult = response.data;
-
-    let maxScore = 0;
-    let maxCategory = '';
-    let cumulativeScore = 0;
-
-    for (const [category, score] of Object.entries(moderationResult.category_scores)) {
-      if (score > maxScore) {
-        maxScore = score;
-        maxCategory = category;
-      }
-      cumulativeScore += score;
-    }
-
-    const normalizedCumulativeScore = cumulativeScore / Object.keys(moderationResult.category_scores).length;
-
-    const determineAction = (score: number, cumulativeScore: number): Action => {
-      if (score >= BAN_THRESHOLD || cumulativeScore >= CUMULATIVE_BAN_THRESHOLD) return 'ban';
-      if (score >= MUTE_THRESHOLD || cumulativeScore >= CUMULATIVE_MUTE_THRESHOLD) return 'mute';
-      if (score >= DELETE_THRESHOLD || cumulativeScore >= CUMULATIVE_DELETE_THRESHOLD) return 'delete';
-      if (score >= WARN_THRESHOLD || cumulativeScore >= CUMULATIVE_WARN_THRESHOLD) return 'warn';
-      return 'allow';
-    };
-
+    const {maxScore, maxCategory, normalizedCumulativeScore} = calculateScores(moderationResult);
     const action = determineAction(maxScore, normalizedCumulativeScore);
 
     res.status(200).json({
       action,
-      message: 'Message processed',
+      message: 'Message processed successfully',
       highestSeverity: maxScore,
       highestCategory: maxCategory,
-      cumulativeScore: normalizedCumulativeScore
+      cumulativeScore: normalizedCumulativeScore,
+      details: {
+        flagged: moderationResult.flagged,
+        categories: moderationResult.categories,
+        categoryScores: moderationResult.category_scores
+      }
     });
+
   } catch (error) {
     console.error('Error in moderateMessage:', error);
-    if (axios.isAxiosError(error)) {
-      const axiosError = error as AxiosError;
-      res.status(axiosError.response?.status || 500).json({
-        error: 'An error occurred while moderating the message',
-        details: axiosError.response?.data || axiosError.message
+
+    if (error instanceof ModerationError) {
+      res.status(error.statusCode).json({
+        error: error.message,
+        details: error.details
       });
-    } else {
-      res.status(500).json({
-        error: 'An unexpected error occurred while moderating the message',
-        details: (error as Error).message
-      });
+      return;
     }
+
+    res.status(500).json({
+      error: 'An unexpected error occurred while moderating the message',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
