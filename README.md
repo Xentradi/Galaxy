@@ -1,2 +1,2 @@
-# Galaxy
-Galaxy moderation AI
+# GalaxyGuard
+Galaxy moderation API

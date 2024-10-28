@@ -175,3 +175,8 @@ tf_env/
 # Ignore all files in GalaxyGuard/data and GalaxyGuard/models
 GalaxyGuard/data/
 GalaxyGuard/models/
+.aider.tags.cache.v3/cache.db
+.aider.tags.cache.v3/cache.db-shm
+.aider.tags.cache.v3/cache.db-wal
+.aider.chat.history.md
+.aider.input.history
