@@ -1,37 +1,10 @@
 import OpenAIService from '../services/openAIService.js';
 import UserHistory from '../models/UserHistory.js';
 import {ModAction, ContentCategory} from '../models/constants.js';
-
-// Configuration for the moderation system
-const moderationConfig = {
-  thresholds: {
-    [ContentCategory.HATE]: {low: 0.4, medium: 0.7, high: 0.85},
-    [ContentCategory.HARASSMENT]: {low: 0.4, medium: 0.7, high: 0.85},
-    [ContentCategory.SEXUAL]: {low: 0.5, medium: 0.75, high: 0.9},
-    [ContentCategory.VIOLENCE]: {low: 0.5, medium: 0.75, high: 0.9},
-    [ContentCategory.SELF_HARM]: {low: 0.3, medium: 0.6, high: 0.8},
-    [ContentCategory.SPAM]: {low: 0.6, medium: 0.8, high: 0.9}
-  },
-  strikes: {
-    warn: {limit: 3, decay: '7d'},
-    mute: {limit: 2, decay: '30d'},
-    tempBan: {limit: 2, decay: '90d'}
-  },
-  durations: {
-    mute: 24,
-    tempBan: 168 // 1 week
-  },
-  contextModifiers: {
-    sensitiveChannel: 0.2,
-    repeatOffense: 0.3,
-    newUser: 0.1,
-    trustedUser: -0.2,
-    highActivityPeriod: 0.15
-  }
-};
+import config from '../config/config.json' assert {type: "json"};
 
 class ContentModerator {
-  constructor(config = moderationConfig) {
+  constructor(config = config.moderation) {
     this.config = config;
   }
 
@@ -271,6 +244,5 @@ async function moderateContent(req, res) {
 
 export {
   ContentModerator,
-  moderationConfig,
   moderateContent
 };
