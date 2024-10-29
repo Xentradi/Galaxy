@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 import config from './config.json';
 
-const databaseURI = config.databaseURI || process.env.DATABASE_URI;
+const databaseURI = config.databaseURI || process.env.DATABASE_URI || 'mongodb://localhost:27017/galaxy';
 
 export const connectDB = async () => {
   try {

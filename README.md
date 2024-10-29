@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Galaxy Moderation API is designed to use OpenAI's moderation endpoint to suggest moderation actions for platforms such as Twitch or Discord. The API is secured with API keys and adheres to SOLID principles.
+The Galaxy Moderation API is designed to use OpenAI's moderation endpoint to suggest moderation actions for platforms such as Twitch or Discord. The API provides endpoints for message storage, content moderation, and chat moderation operations. The API is secured with API keys and adheres to SOLID principles.
 
 ## Configuration
 
@@ -31,72 +31,170 @@ The server will run on port 3000 by default.
 
 ## API Endpoints
 
-### POST /api/moderate
+All endpoints require the following headers:
+- `x-api-key`: Your API key for authentication
+- `x-user-id`: The ID of the user making the request
 
-This endpoint accepts content for moderation and returns the moderation result.
+### POST /api/messages
 
-#### Request
+Store chat messages without moderation. Use this endpoint when you only need to capture message data.
 
-- **Headers**: 
-  - `x-api-key`: Your API key for authentication.
-- **Body**: JSON object containing the content to be moderated.
-  ```json
-  {
-    "content": "The content to be moderated"
-  }
-  ```
-
-#### Example Request
-
-```bash
-curl -X POST http://localhost:3000/api/moderate \
--H "Content-Type: application/json" \
--H "x-api-key: your_api_key_here" \
--d '{"content": "This is a test content to be moderated."}'
+#### Request Body
+```json
+{
+  "content": "message text",
+  "username": "user123",
+  "userId": "12345",
+  "channelName": "channel",
+  "channelId": "67890"
+}
 ```
 
 #### Response
-
-- **Success**: Returns a JSON object with the moderation result.
-  ```json
-  {
-    "message": "Content moderated successfully",
-    "moderationResult": { /* OpenAI moderation result */ }
+```json
+{
+  "message": "Message stored successfully",
+  "data": {
+    "_id": "message_id",
+    "content": "message text",
+    "username": "user123",
+    "timestamp": "2023-12-20T12:00:00Z",
+    ...
   }
-  ```
+}
+```
 
-- **Error**: Returns a JSON object with an error message.
-  ```json
-  {
-    "message": "Failed to moderate content",
-    "error": "Error details"
-  }
-  ```
+### POST /api/moderate
 
-#### Example Response
+Moderate content without storing it. Use this endpoint when you only need to check content.
 
+#### Request Body
+```json
+{
+  "content": "content to moderate",
+  "channelType": "normal",
+  "channelId": "67890"
+}
+```
+
+#### Response
 ```json
 {
   "message": "Content moderated successfully",
-  "moderationResult": {
-    "flagged": false,
+  "action": "ALLOW",
+  "analysis": {
     "categories": {
-      "hate": false,
-      "violence": false,
-      "self-harm": false
+      "hate": "none",
+      "violence": "none",
+      ...
     },
-    "category_scores": {
-      "hate": 0.01,
-      "violence": 0.02,
-      "self-harm": 0.01
-    }
+    "highestSeverity": 0.01,
+    "flaggedCategory": null
+  },
+  "severity": 0.01
+}
+```
+
+### POST /api/chat-moderation
+
+Endpoint that both stores the chat message and performs moderation in one operation. Use this when you need to capture and moderate chat messages together.
+
+#### Request Body
+```json
+{
+  "content": "message text",
+  "username": "user123",
+  "userId": "12345",
+  "channelName": "channel",
+  "channelId": "67890",
+  "channelType": "normal"
+}
+```
+
+#### Response
+```json
+{
+  "message": {
+    "_id": "message_id",
+    "content": "message text",
+    "username": "user123",
+    "timestamp": "2023-12-20T12:00:00Z",
+    ...
+  },
+  "moderation": {
+    "action": "ALLOW",
+    "analysis": {
+      "categories": {
+        "hate": "none",
+        "violence": "none",
+        ...
+      },
+      "highestSeverity": 0.01,
+      "flaggedCategory": null
+    },
+    "severity": 0.01
   }
+}
+```
+
+### GET /api/channels/:channelId/messages
+
+Retrieve messages for a specific channel.
+
+#### Query Parameters
+- `limit` (optional): Number of messages to return (default: 100)
+- `skip` (optional): Number of messages to skip (default: 0)
+- `startDate` (optional): Filter messages from this date
+- `endDate` (optional): Filter messages until this date
+- `moderatedOnly` (optional): If true, return only moderated messages
+
+#### Response
+```json
+{
+  "messages": [
+    {
+      "_id": "message_id",
+      "content": "message text",
+      "username": "user123",
+      "timestamp": "2023-12-20T12:00:00Z",
+      ...
+    },
+    ...
+  ]
+}
+```
+
+### GET /api/training-data
+
+Retrieve messages for AI training purposes.
+
+#### Query Parameters
+- `limit` (optional): Number of messages to return (default: 1000)
+- `skip` (optional): Number of messages to skip (default: 0)
+- `moderatedOnly` (optional): If true, return only moderated messages
+- `categories` (optional): Comma-separated list of categories to filter by
+- `startDate` (optional): Filter messages from this date
+- `endDate` (optional): Filter messages until this date
+
+#### Response
+```json
+{
+  "data": [
+    {
+      "_id": "message_id",
+      "content": "message text",
+      "moderationType": "ALLOW",
+      "toxicityScore": 0.01,
+      ...
+    },
+    ...
+  ]
 }
 ```
 
 ## Security
 
-The API uses API key authentication. Ensure your requests include the correct `x-api-key` header.
+The API uses API key authentication. Ensure your requests include both the `x-api-key` and `x-user-id` headers.
 
 ## License
 

@@ -1,10 +1,16 @@
 import 'dotenv/config'
 import express from 'express';
 import moderationRoutes from './routes/moderation.js';
+import chatMessageRoutes from './routes/chatMessage.js';
+import chatModerationRoutes from './routes/chatModeration.js';
 import config from './config/config.json' assert {type: 'json'};
+import {connectDB} from './config/db.js';
 
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Connect to MongoDB
+connectDB();
 
 // Middleware to parse JSON requests
 app.use(express.json());
@@ -30,8 +36,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// Use moderation routes
+// Use routes
 app.use('/api', moderationRoutes);
+app.use('/api', chatMessageRoutes);
+app.use('/api', chatModerationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
