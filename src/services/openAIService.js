@@ -1,5 +1,5 @@
-const axios = require('axios');
-const config = require('../config.json');
+import axios from 'axios';
+import config from '../config/config.json' assert {type: 'json'};
 
 /**
  * OpenAI Service
@@ -25,4 +25,4 @@ class OpenAIService {
   }
 }
 
-module.exports = OpenAIService;
+export default OpenAIService;

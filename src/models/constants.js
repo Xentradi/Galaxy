@@ -1,4 +1,4 @@
-const ModAction = {
+export const ModAction = {
   ALLOW: 'allow',
   WARN: 'warn',
   MUTE: 'mute',
@@ -7,16 +7,11 @@ const ModAction = {
   REVIEW: 'needs_review'
 };
 
-const ContentCategory = {
+export const ContentCategory = {
   HATE: 'hate',
   HARASSMENT: 'harassment',
   SEXUAL: 'sexual',
   VIOLENCE: 'violence',
   SELF_HARM: 'self-harm',
   SPAM: 'spam'
-};
-
-module.exports = {
-  ModAction,
-  ContentCategory
 };

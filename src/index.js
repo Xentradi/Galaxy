@@ -1,7 +1,8 @@
 import 'dotenv/config'
 import express from 'express';
-import moderationRoutes from './routes/moderation';
-import config from './config/config.json';
+import moderationRoutes from './routes/moderation.js';
+import config from './config/config.json' assert {type: 'json'};
+
 const app = express();
 const port = process.env.PORT || 3000;
 

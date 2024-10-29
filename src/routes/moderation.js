@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import {moderateContent} from '../controllers/moderationController.js';
+
 const router = express.Router();
-const moderationController = require('../controllers/moderationController');
 
 // Define a route for moderation
-router.post('/moderate', moderationController.moderateContent);
+router.post('/moderate', moderateContent);
 
-module.exports = router;
+export default router;

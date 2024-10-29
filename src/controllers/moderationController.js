@@ -1,6 +1,6 @@
-const OpenAIService = require('../services/openAIService');
-const UserHistory = require('../models/UserHistory');
-const {ModAction, ContentCategory} = require('../models/constants');
+import OpenAIService from '../services/openAIService.js';
+import UserHistory from '../models/UserHistory.js';
+import {ModAction, ContentCategory} from '../models/constants.js';
 
 // Configuration for the moderation system
 const moderationConfig = {
@@ -229,7 +229,7 @@ async function getContextData(req) {
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
  */
-exports.moderateContent = async (req, res) => {
+async function moderateContent(req, res) {
   const moderator = new ContentModerator();
 
   try {
@@ -267,10 +267,10 @@ exports.moderateContent = async (req, res) => {
       error: error.message
     });
   }
-};
+}
 
-module.exports = {
+export {
   ContentModerator,
   moderationConfig,
-  moderateContent: exports.moderateContent
+  moderateContent
 };

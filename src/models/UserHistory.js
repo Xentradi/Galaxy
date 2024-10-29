@@ -1,7 +1,8 @@
-const mongoose = require('mongoose');
-const {ModAction, ContentCategory} = require('./constants');
+import mongoose from 'mongoose';
+import {ModAction, ContentCategory} from './constants.js';
 
 const UserHistorySchema = new mongoose.Schema({
+  infactionId: {type: String, required: true, index: true},
   userId: {type: String, required: true, index: true},
   infractions: [{
     type: {type: String, enum: Object.values(ModAction)},
@@ -21,4 +22,4 @@ const UserHistorySchema = new mongoose.Schema({
 // Index for efficient querying
 UserHistorySchema.index({userId: 1, 'infractions.timestamp': -1});
 
-module.exports = mongoose.model('UserHistory', UserHistorySchema);
+export default mongoose.model('UserHistory', UserHistorySchema);
