@@ -1,0 +1,5 @@
+{
+  "databaseURI": "your_mongodb_uri_here",
+  "openAIKey": "your_openai_api_key_here",
+  "apiKey": "your_api_key_here"
+}

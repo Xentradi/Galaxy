@@ -1,12 +1,19 @@
 {
-  "name": "galaxyguard",
+  "name": "galaxy",
   "version": "1.0.0",
-  "description": "GalaxyGuard moderation API",
-  "main": "index.js",
+  "description": "Galaxy moderation API",
+  "main": "src/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "mongodb": "^6.10.0",
+    "mongoose": "^8.7.3"
+  }
 }
