@@ -180,3 +180,6 @@ GalaxyGuard/models/
 .aider.tags.cache.v3/cache.db-wal
 .aider.chat.history.md
 .aider.input.history
+
+# Wiki directory
+Galaxy.wiki/
