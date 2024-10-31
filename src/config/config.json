@@ -1,7 +1,15 @@
 {
   "databaseURI": "your_mongodb_uri_here",
   "openAIKey": "your_openai_api_key_here",
-  "apiKey": "your_api_key_here",
+  "oauth": {
+    "tokenExpiration": 3600,
+    "refreshTokenExpiration": 2592000,
+    "allowedScopes": [
+      "read",
+      "write",
+      "admin"
+    ]
+  },
   "moderation": {
     "thresholds": {
       "hate": {
