@@ -8,7 +8,7 @@ import config from '../config/config.js';
 class OpenAIService {
   static async moderateContent(content) {
     try {
-      const openAIKey = process.env.OPENAI_KEY || config.openAIKey;
+      const openAIKey = process.env.OPENAI_KEY || null
       const response = await axios.post('https://api.openai.com/v1/moderations', {
         input: content
       }, {

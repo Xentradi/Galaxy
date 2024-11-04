@@ -1,6 +1,4 @@
 export default {
-  databaseURI: "mongodb://localhost:27017/galaxy",
-  openAIKey: "your_openai_api_key_here",
   oauth: {
     tokenExpiration: 3600,
     refreshTokenExpiration: 2592000,
