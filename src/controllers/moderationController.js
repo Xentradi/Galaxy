@@ -1,6 +1,6 @@
 import OpenAIService from '../services/openAIService.js';
 import {ModAction, ContentCategory} from '../models/constants.js';
-import config from '../config/config.json' assert {type: "json"};
+import config from '../config/config.js';
 import {
   getUserHistory,
   calculateStrikeWeight,

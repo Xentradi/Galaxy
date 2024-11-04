@@ -1,4 +1,4 @@
-import UserHistory from '../models/UserHistory';
+import UserHistory from '../models/UserHistory.js';
 
 class UserHistoryRepository {
   // Find a user history by ID
