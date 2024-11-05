@@ -1,195 +1,88 @@
 # GalaxyGuard Integration Guide
 
-This guide explains how to integrate GalaxyGuard's moderation services into Galaxias.
+This guide explains how to integrate the local GalaxyGuard SDK with your Twitch bot for chat moderation and logging.
 
-## Configuration
+## Project Setup
 
-The following environment variables have been added to `.env`:
+1. Ensure the SDK is in your project:
+```
+your-twitch-bot/
+├── src/
+│   ├── gg/                    # GalaxyGuard SDK
+│   │   ├── services/          # API services
+│   │   ├── utils/             # Utilities
+│   │   ├── errors.js         
+│   │   ├── index.js          
+│   │   ├── tokenManager.js   
+│   │   └── types.js         
+│   └── bot.js                 # Your bot implementation
+├── package.json
+└── .env
+```
+
+2. Add required dependencies to your package.json:
+```json
+{
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.x.x",
+    "dotenv": "^16.x.x"
+  }
+}
+```
+
+3. Install dependencies:
+```bash
+npm install
+```
+
+## Environment Setup
+
+Create a `.env` file in your project root:
 
 ```env
-GALAXYGUARD_URL=http://localhost:3000
-GALAXYGUARD_CLIENT_ID=9caa509e6d64fd941cf5efd4d0dbf983
-GALAXYGUARD_CLIENT_SECRET=3c421297d0acfe4cecb0bd77a7b7dedc22eb562c643bef7a9fe4ea8d646645f9
+GALAXYGUARD_API_URL=https://your-api-url
+GALAXYGUARD_CLIENT_ID=your_client_id
+GALAXYGUARD_CLIENT_SECRET=your_client_secret
+GALAXYGUARD_MODE=moderate  # or 'log' for logging only
 ```
 
-## Token Management
+## Basic Integration
 
-Create a token manager to handle caching and refreshing of the access token:
-
-```javascript
-class GalaxyGuardTokenManager {
-  constructor() {
-    this.token = null;
-    this.tokenExpiry = null;
-    // Add 5 minute buffer before expiry to ensure token is still valid during requests
-    this.expiryBuffer = 5 * 60 * 1000; 
-  }
-
-  async getToken() {
-    // Return cached token if it's still valid
-    if (this.token && this.tokenExpiry && Date.now() < (this.tokenExpiry - this.expiryBuffer)) {
-      return this.token;
-    }
-
-    // Get new token if none exists or current one is expired/expiring soon
-    const response = await fetch(`${process.env.GALAXYGUARD_URL}/auth/oauth/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${Buffer.from(`${process.env.GALAXYGUARD_CLIENT_ID}:${process.env.GALAXYGUARD_CLIENT_SECRET}`).toString('base64')}`
-      },
-      body: JSON.stringify({
-        grant_type: 'client_credentials'
-      })
-    });
-    
-    const data = await response.json();
-    
-    // Cache the token and set expiry (tokens expire in 1 hour)
-    this.token = data.access_token;
-    this.tokenExpiry = Date.now() + (60 * 60 * 1000); // 1 hour in milliseconds
-    
-    return this.token;
-  }
-}
-
-// Create a single instance to be used throughout the application
-const tokenManager = new GalaxyGuardTokenManager();
-```
-
-## GalaxyGuard API Client
-
-Create a client to handle all GalaxyGuard API interactions:
+In your bot.js file:
 
 ```javascript
-class GalaxyGuardClient {
-  constructor(tokenManager) {
-    this.tokenManager = tokenManager;
-  }
+import 'dotenv/config';
+import { GalaxyGuard, Mode, withRetry } from './gg/index.js';
 
-  async request(endpoint, options = {}) {
-    const token = await this.tokenManager.getToken();
-    
-    const response = await fetch(`${process.env.GALAXYGUARD_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        ...options.headers,
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
+// Initialize the client
+const guard = new GalaxyGuard({
+  apiUrl: process.env.GALAXYGUARD_API_URL,
+  clientId: process.env.GALAXYGUARD_CLIENT_ID,
+  clientSecret: process.env.GALAXYGUARD_CLIENT_SECRET,
+  mode: process.env.GALAXYGUARD_MODE || Mode.MODERATE
+});
 
-    if (!response.ok) {
-      throw new Error(`GalaxyGuard API error: ${response.status}`);
-    }
-
-    return response.json();
-  }
-
-  async moderateMessage(content, channelId, userId, channelType = 'normal') {
-    return this.request('/moderation/moderate', {
-      method: 'POST',
-      body: JSON.stringify({
-        content,
-        channelId,
-        userId,
-        channelType
-      })
-    });
-  }
-
-  async storeMessage(message) {
-    return this.request('/chat/messages', {
-      method: 'POST',
-      body: JSON.stringify({
-        content: message.content,
-        username: message.username,
-        userId: message.userId,
-        channelName: message.channelName,
-        channelId: message.channelId,
-        messageType: message.type,
-        badges: message.badges,
-        emotes: message.emotes,
-        platform: 'twitch',
-        raw: message
-      })
-    });
-  }
-
-  async getChannelMessages(channelId, options = {}) {
-    const queryParams = new URLSearchParams({
-      limit: options.limit || 100,
-      skip: options.skip || 0,
-      startDate: options.startDate,
-      endDate: options.endDate,
-      moderatedOnly: options.moderatedOnly
-    });
-
-    return this.request(`/chat/channels/${channelId}/messages?${queryParams}`);
-  }
-}
-
-// Create a single instance to be used throughout the application
-const galaxyGuard = new GalaxyGuardClient(tokenManager);
-```
-
-## Usage Example
-
-```javascript
-async function handleChatMessage(message, channel) {
+// In your message handler
+async function onChatMessage(message, channel) {
   try {
-    const modResult = await galaxyGuard.moderateMessage(
-      message.content,
-      channel.id,
-      message.userId
+    const result = await withRetry(() => 
+      guard.messages.handleMessage(
+        {
+          content: message.content,
+          channelType: 'twitch',
+          userId: message.userId,
+          username: message.username
+        },
+        { id: channel.id }
+      )
     );
-    
-    switch (modResult.action) {
-      case 'ALLOW':
-        // Message is safe, proceed normally
-        break;
-        
-      case 'WARN':
-        await warnUser(message.userId, channel.id);
-        break;
-        
-      case 'MUTE':
-        await timeoutUser(message.userId, channel.id, 24 * 60 * 60); // 24 hour timeout
-        break;
-        
-      case 'TEMP_BAN':
-        await banUser(message.userId, channel.id, 7 * 24 * 60 * 60); // 7 day ban
-        break;
-        
-      case 'PERM_BAN':
-        await banUser(message.userId, channel.id); // Permanent ban
-        break;
-    }
-    
-    // Store moderated message
-    await galaxyGuard.storeMessage({
-      ...message,
-      moderationResult: modResult
-    });
-    
-  } catch (error) {
-    console.error('Moderation failed:', error);
-    return handleModerationError(error, message);
-  }
-}
 
-// Example of fetching channel messages
-async function displayChannelHistory(channelId) {
-  try {
-    const messages = await galaxyGuard.getChannelMessages(channelId, {
-      limit: 50,
-      moderatedOnly: true
-    });
-    
-    return messages;
+    if (guard.mode === Mode.MODERATE) {
+      handleModerationResult(result);
+    }
   } catch (error) {
-    console.error('Failed to fetch channel history:', error);
-    throw error;
+    handleError(error);
   }
 }
 ```
@@ -197,41 +90,185 @@ async function displayChannelHistory(channelId) {
 ## Error Handling
 
 ```javascript
-function handleModerationError(error, message) {
-  console.error('Moderation error:', error);
-  
-  // Log the error for investigation
-  logError({
-    type: 'moderation_error',
-    error: error.message,
-    messageId: message.id,
-    timestamp: new Date()
-  });
-  
-  // Implement fallback behavior
-  // For example: Allow message through but flag for manual review
-  return {
-    action: 'REVIEW',
-    error: true
-  };
+import {
+  GalaxyGuardError,
+  AuthenticationError,
+  RateLimitError,
+  ValidationError,
+  NetworkError
+} from './gg/index.js';
+
+function handleError(error) {
+  if (error instanceof RateLimitError) {
+    console.error('Rate limit exceeded, reset at:', error.resetTime);
+    // Implement backoff strategy
+  } else if (error instanceof AuthenticationError) {
+    console.error('Authentication failed:', error.message);
+    // Handle token issues
+  } else if (error instanceof ValidationError) {
+    console.error('Invalid request:', error.details);
+    // Fix request data
+  } else if (error instanceof NetworkError) {
+    console.error('Network error:', error.message);
+    // Handle connectivity issues
+  } else {
+    console.error('Unexpected error:', error);
+  }
+}
+```
+
+## Moderation Handler
+
+```javascript
+import { ModerationAction } from './gg/index.js';
+
+function handleModerationResult(result) {
+  const { moderation } = result;
+
+  switch (moderation.action) {
+    case ModerationAction.DELETE:
+      // Delete message
+      deleteMessage(result.message._id);
+      logModeration(result, 'Message deleted');
+      break;
+
+    case ModerationAction.WARN:
+      // Warn user
+      warnUser(
+        result.message.username,
+        moderation.analysis.flaggedCategory
+      );
+      logModeration(result, 'User warned');
+      break;
+
+    case ModerationAction.ALLOW:
+      // Message is safe
+      logModeration(result, 'Message allowed');
+      break;
+  }
+}
+```
+
+## Advanced Features
+
+### Channel History
+
+```javascript
+async function getChannelHistory(channelId) {
+  try {
+    const messages = await guard.messages.getChannelMessages(
+      channelId,
+      {
+        limit: 100,
+        before: new Date().toISOString()
+      }
+    );
+
+    return messages;
+  } catch (error) {
+    handleError(error);
+    return [];
+  }
+}
+```
+
+### Mode Switching
+
+```javascript
+function setMode(mode) {
+  try {
+    guard.setMode(mode);
+    console.log(`Switched to ${mode} mode`);
+  } catch (error) {
+    console.error('Invalid mode:', error.message);
+  }
+}
+```
+
+### Batch Processing
+
+```javascript
+async function processBatch(messages, channel) {
+  const results = await Promise.allSettled(
+    messages.map(msg => 
+      withRetry(() => guard.messages.handleMessage(msg, channel))
+    )
+  );
+
+  return results.map((result, index) => ({
+    message: messages[index],
+    success: result.status === 'fulfilled',
+    data: result.status === 'fulfilled' ? result.value : result.reason
+  }));
 }
 ```
 
 ## Best Practices
 
-1. Use the singleton instances of `tokenManager` and `galaxyGuard` throughout your application
-2. The token manager automatically handles token caching and renewal
-3. All API calls are centralized in the GalaxyGuardClient class
-4. Implement proper error handling and fallbacks
-5. Store moderation results with messages for future reference
-6. Use appropriate timeouts and ban durations based on severity
-7. Monitor moderation accuracy and adjust channel types as needed
-8. Regularly review moderation logs to identify patterns and improve settings
+1. **SDK Updates**
+   - Keep the SDK code in your project's repository
+   - Update the SDK code directly in the `src/gg` directory
+   - Test changes thoroughly before deploying
 
-## Implementation Notes
+2. **Error Handling**
+   - Implement comprehensive error handling
+   - Use appropriate error types
+   - Log errors with context
 
-1. The token manager includes a 5-minute buffer before token expiry to ensure tokens are refreshed before they actually expire
-2. All API calls are automatically authenticated using the cached token
-3. The client handles common API interaction patterns and provides a clean interface
-4. Error handling is consistent across all API calls
-5. The implementation is modular and maintainable
+3. **Performance**
+   - Reuse the client instance
+   - Implement rate limiting
+   - Use retries with backoff
+
+4. **Security**
+   - Store credentials in .env
+   - Never commit .env files
+   - Keep the SDK private
+
+5. **Testing**
+   - Test both moderation and logging modes
+   - Verify error handling
+   - Test rate limit handling
+
+## Common Issues
+
+1. **Authentication**
+   - Ensure credentials are correct
+   - Check token expiration
+   - Verify API URL
+
+2. **Rate Limiting**
+   - Implement proper backoff
+   - Monitor usage patterns
+   - Cache when possible
+
+3. **Network Issues**
+   - Use retry mechanism
+   - Implement circuit breaker
+   - Log connection errors
+
+4. **Data Validation**
+   - Validate input data
+   - Handle special characters
+   - Check message lengths
+
+## Version Control
+
+1. Add the following to your .gitignore:
+```gitignore
+.env
+node_modules/
+```
+
+2. Commit the SDK code with your project:
+```bash
+git add src/gg
+git commit -m "Update GalaxyGuard SDK"
+```
+
+## Development Workflow
+
+1. Make changes to the SDK in `src/gg`
+2. Test changes with your bot
+3. Commit changes to your project repository
+4. Deploy your bot with the updated SDK
