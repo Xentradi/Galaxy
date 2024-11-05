@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import {ModAction, ContentCategory} from './constants.js';
 
 const UserHistorySchema = new mongoose.Schema({
-  infactionId: {type: String, required: true, index: true},
+  infractionId: {type: String, required: true, index: true},
   userId: {type: String, required: true, index: true},
   infractions: [{
     type: {type: String, enum: Object.values(ModAction)},
