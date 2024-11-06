@@ -181,9 +181,6 @@ GalaxyGuard/models/
 .aider.chat.history.md
 .aider.input.history
 
-# Wiki directory
-Galaxy.wiki/
-*.wiki
 tutorial/
 twitchBot/GALAXYGUARD_INTEGRATION.md
 twitchBot/GALAXYGUARD_INTEGRATION.md
