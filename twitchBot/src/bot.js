@@ -1,18 +1,28 @@
 import 'dotenv/config'
 import config from './config/config.js';
 import tmi from 'tmi.js';
-import axios from 'axios';
-import {TwitchTokenManager} from './gg/twitchTokenManager.js';
+import {TokenManager} from './twitchAuth/tokenManager.js';
 import {onMessageHandler} from './handlers/messageHandler.js';
 
-const tokenManager = new TwitchTokenManager({
+const tokenManager = new TokenManager({
   clientId: process.env.TWITCH_CLIENT_ID,
   clientSecret: process.env.TWITCH_CLIENT_SECRET
 });
 
 async function initializeBot() {
   try {
-    const token = await tokenManager.getAccessToken();
+    let token;
+
+    // If we have an auth code, exchange it for a token
+    if (process.env.TWITCH_AUTH_CODE) {
+      token = await tokenManager.exchangeCode(process.env.TWITCH_AUTH_CODE);
+    } else {
+      token = await tokenManager.getValidToken();
+    }
+
+    if (!token) {
+      return; // The token manager will have prompted for authentication
+    }
 
     const opts = {
       identity: {
