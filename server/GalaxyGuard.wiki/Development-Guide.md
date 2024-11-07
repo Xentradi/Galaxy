@@ -1,316 +1,319 @@
 # Development Guide
 
-## Getting Started
+This guide provides information for developers working on or integrating with GalaxyGuard.
 
-### Development Environment Setup
-
-1. **Prerequisites**
-   - Node.js (Latest LTS version)
-   - MongoDB
-   - Git
-   - Your favorite code editor (VSCode recommended)
-
-2. **Initial Setup**
-```bash
-# Clone repository
-git clone <repository-url>
-cd GalaxyGuard
-
-# Install dependencies
-npm install
-
-# Set up environment
-cp .env-sample .env
-# Edit .env with your configuration
-
-# Start development server
-npm run dev
-```
-
-## Code Structure
+## Project Structure
 
 ```
-src/
-├── config/         # Configuration files
-├── controllers/    # Business logic
-├── middleware/     # Request processors
-├── models/         # Data models
-├── repositories/   # Data access
-├── routes/         # API routes
-└── services/       # External services
+server/
+├── src/
+│   ├── config/           # Configuration files
+│   │   ├── config.js     # Main configuration
+│   │   └── db.js        # Database configuration
+│   ├── controllers/      # Request handlers
+│   ├── middleware/       # Express middleware
+│   ├── models/          # Database models
+│   ├── repositories/    # Data access layer
+│   ├── routes/          # API routes
+│   ├── services/        # Business logic
+│   └── index.js         # Application entry point
+├── .env-sample          # Environment variables template
+└── package.json         # Project dependencies
 ```
 
-## Coding Standards
+## Development Setup
 
-### JavaScript/Node.js
+1. **Environment Setup**
+   ```bash
+   # Install dependencies
+   npm install
 
-1. **Style Guide**
-   - Use ES6+ features
-   - Follow Airbnb JavaScript Style Guide
-   - Use async/await for asynchronous operations
-   - Implement proper error handling
+   # Copy environment template
+   cp .env-sample .env
 
-2. **Example Code Style**
+   # Start development server
+   npm run dev
+   ```
+
+2. **Database Setup**
+   ```javascript
+   // src/config/db.js
+   import mongoose from 'mongoose';
+
+   mongoose.connect(process.env.DATABASE_URI, {
+     useNewUrlParser: true,
+     useUnifiedTopology: true
+   });
+   ```
+
+## Code Style Guidelines
+
+### 1. JavaScript Conventions
+
+- Use ES6+ features
+- Async/await for asynchronous operations
+- Proper error handling
+- Clear variable and function naming
+
+Example:
 ```javascript
 // Good
 async function getUserHistory(userId) {
   try {
-    const history = await UserHistory.find({ userId });
-    return history;
+    return await UserHistory.findOne({ userId });
   } catch (error) {
-    logger.error('Failed to fetch user history:', error);
-    throw new Error('Database operation failed');
+    throw new Error(`Failed to get user history: ${error.message}`);
   }
 }
 
-// Bad
-function getUserHistory(userId) {
-  return UserHistory.find({ userId })
+// Avoid
+function getHistory(id) {
+  return UserHistory.findOne({ userId: id })
     .then(history => history)
-    .catch(error => {
-      console.log(error);
-      throw error;
-    });
+    .catch(err => console.error(err));
 }
 ```
 
-### Code Documentation
+### 2. API Route Structure
 
-1. **JSDoc Comments**
 ```javascript
-/**
- * Determines moderation action based on content analysis
- * @param {Object} analysis - Content analysis results
- * @param {Object} context - Moderation context
- * @param {Object} userHistory - User's moderation history
- * @returns {Promise<string>} Determined moderation action
- * @throws {Error} If analysis is invalid
- */
-async function determineAction(analysis, context, userHistory) {
-  // Implementation
-}
+// src/routes/example.js
+import express from 'express';
+const router = express.Router();
+
+router.get('/', controller.list);
+router.post('/', controller.create);
+router.get('/:id', controller.get);
+router.put('/:id', controller.update);
+router.delete('/:id', controller.delete);
+
+export default router;
 ```
 
-2. **Inline Comments**
-- Use for complex logic explanation
-- Avoid obvious comments
-- Keep comments up to date
-
-## Testing
-
-### Unit Tests
+### 3. Controller Pattern
 
 ```javascript
-// Example test using Jest
-describe('ContentModerator', () => {
-  describe('determineAction', () => {
-    it('should escalate action for repeat offenders', async () => {
-      const moderator = new ContentModerator();
-      const analysis = {
-        highestSeverity: 0.6,
-        flaggedCategory: 'harassment'
-      };
-      const context = { channelType: 'normal' };
-      const userHistory = {
-        recentInfractions: { warns: 3 }
-      };
-
-      const action = await moderator.determineAction(
-        analysis,
-        context,
-        userHistory
-      );
-
-      expect(action).toBe(ModAction.MUTE);
-    });
-  });
-});
-```
-
-### Integration Tests
-
-```javascript
-describe('Moderation API', () => {
-  it('should moderate content successfully', async () => {
-    const response = await request(app)
-      .post('/api/moderate')
-      .set('x-api-key', testApiKey)
-      .set('x-user-id', 'test-user')
-      .send({
-        content: 'test content',
-        channelId: 'test-channel'
-      });
-
-    expect(response.status).toBe(200);
-    expect(response.body).toHaveProperty('action');
-  });
-});
+// src/controllers/exampleController.js
+export const create = async (req, res) => {
+  try {
+    const data = await service.create(req.body);
+    res.status(201).json(data);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
 ```
 
 ## Error Handling
 
-### Best Practices
+### 1. Custom Error Classes
 
-1. **Custom Error Classes**
 ```javascript
-class ModrationError extends Error {
-  constructor(message, code) {
+// src/errors.js
+export class ValidationError extends Error {
+  constructor(message) {
     super(message);
-    this.name = 'ModrationError';
-    this.code = code;
+    this.name = 'ValidationError';
+    this.status = 400;
   }
 }
 ```
 
-2. **Error Response Format**
+### 2. Error Middleware
+
 ```javascript
-{
-  message: 'Human-readable error message',
-  error: 'Error identifier',
-  details: {} // Additional error context
+// src/middleware/errorMiddleware.js
+export const errorHandler = (err, req, res, next) => {
+  const status = err.status || 500;
+  const message = err.message || 'Internal Server Error';
+  
+  res.status(status).json({ message });
+};
+```
+
+## Testing
+
+### 1. Unit Tests
+
+```javascript
+// Example test using Jest
+describe('UserHistory Service', () => {
+  it('should create user history', async () => {
+    const data = {
+      userId: 'user123',
+      action: 'message'
+    };
+    const result = await userHistoryService.create(data);
+    expect(result.userId).toBe(data.userId);
+  });
+});
+```
+
+### 2. Integration Tests
+
+```javascript
+// API endpoint test
+describe('POST /messages', () => {
+  it('should store message', async () => {
+    const response = await request(app)
+      .post('/messages')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        content: 'Test message',
+        channelId: 'channel123'
+      });
+    expect(response.status).toBe(201);
+  });
+});
+```
+
+## API Integration
+
+### 1. Client Implementation
+
+```javascript
+// Example client implementation
+class GalaxyGuardClient {
+  constructor(config) {
+    this.config = config;
+    this.baseURL = config.baseURL || 'http://localhost:3000';
+    this.setupAxios();
+  }
+
+  async authenticate() {
+    const response = await this.axios.post('/auth/oauth/token', {
+      grant_type: 'client_credentials'
+    });
+    this.setToken(response.data.access_token);
+  }
 }
 ```
 
-## Git Workflow
+### 2. Error Handling
 
-### Branching Strategy
-
-1. **Branch Names**
-   - feature/description
-   - bugfix/description
-   - hotfix/description
-   - release/version
-
-2. **Commit Messages**
-```
-type(scope): description
-
-[optional body]
-
-[optional footer]
-```
-
-Types:
-- feat: New feature
-- fix: Bug fix
-- docs: Documentation
-- style: Formatting
-- refactor: Code restructuring
-- test: Adding tests
-- chore: Maintenance
-
-### Pull Request Process
-
-1. **PR Template**
-```markdown
-## Description
-Brief description of changes
-
-## Type of Change
-- [ ] Bug fix
-- [ ] New feature
-- [ ] Breaking change
-- [ ] Documentation update
-
-## Testing
-Description of testing performed
-
-## Checklist
-- [ ] Tests added/updated
-- [ ] Documentation updated
-- [ ] Code follows style guide
-- [ ] All tests passing
-```
-
-## Performance Guidelines
-
-### Database Operations
-
-1. **Query Optimization**
 ```javascript
-// Good
-const user = await User.findOne({ id }).select('name email');
-
-// Bad
-const user = await User.findOne({ id });
+// Client-side error handling
+try {
+  await client.moderateContent(message);
+} catch (error) {
+  if (error.response?.status === 429) {
+    // Handle rate limit
+    await delay(error.response.headers['retry-after']);
+  } else {
+    // Handle other errors
+    console.error('Moderation failed:', error.message);
+  }
+}
 ```
 
-2. **Indexing**
+## Database Operations
+
+### 1. Model Definition
+
 ```javascript
-// Create compound index
-db.collection.createIndex({ field1: 1, field2: -1 });
+// src/models/ChatMessage.js
+import mongoose from 'mongoose';
+
+const chatMessageSchema = new mongoose.Schema({
+  content: { type: String, required: true },
+  channelId: { type: String, required: true },
+  userId: { type: String, required: true },
+  timestamp: { type: Date, default: Date.now },
+  moderation: {
+    status: String,
+    action: String,
+    timestamp: Date
+  }
+});
+
+export default mongoose.model('ChatMessage', chatMessageSchema);
 ```
 
-### API Performance
+### 2. Repository Pattern
 
-1. **Response Time**
-   - Target < 100ms for API responses
-   - Use caching where appropriate
-   - Implement pagination
-
-2. **Memory Management**
-   - Monitor memory usage
-   - Implement garbage collection
-   - Use streams for large data
-
-## Debugging
-
-### Tools and Techniques
-
-1. **Logging**
 ```javascript
-const logger = require('./logger');
+// src/repositories/chatMessageRepository.js
+export class ChatMessageRepository {
+  async create(data) {
+    return await ChatMessage.create(data);
+  }
 
-logger.debug('Debug message', { context: 'additional info' });
-logger.info('Info message');
-logger.error('Error message', error);
+  async findByChannel(channelId, options = {}) {
+    return await ChatMessage.find({ channelId })
+      .sort({ timestamp: -1 })
+      .limit(options.limit || 100);
+  }
+}
 ```
 
-2. **Debug Configuration**
+## Moderation Implementation
+
+### 1. Content Analysis
+
 ```javascript
-{
-  "version": "0.2.0",
-  "configurations": [
-    {
-      "type": "node",
-      "request": "launch",
-      "name": "Debug Server",
-      "program": "${workspaceFolder}/src/index.js"
-    }
-  ]
+// src/services/moderationService.js
+export class ModerationService {
+  async analyzeContent(content) {
+    const scores = await this.openAI.analyze(content);
+    return this.evaluateScores(scores);
+  }
+
+  evaluateScores(scores) {
+    const thresholds = config.moderation.thresholds;
+    return Object.entries(scores).reduce((result, [category, score]) => {
+      result[category] = this.getLevel(score, thresholds[category]);
+      return result;
+    }, {});
+  }
+}
+```
+
+### 2. Action Handling
+
+```javascript
+// src/services/actionService.js
+export class ActionService {
+  async handleViolation(userId, violation) {
+    const history = await this.userHistory.getStrikes(userId);
+    const action = this.determineAction(history, violation);
+    await this.executeAction(userId, action);
+    return action;
+  }
 }
 ```
 
 ## Deployment
 
-### Process
+### 1. Production Build
 
-1. **Pre-deployment Checklist**
-   - Run all tests
-   - Update documentation
-   - Check dependencies
-   - Review security
+```bash
+# Build process
+npm run build
 
-2. **Deployment Steps**
-   - Tag release
-   - Build assets
-   - Run migrations
-   - Deploy code
-   - Verify deployment
+# Start production server
+NODE_ENV=production npm start
+```
+
+### 2. Environment Configuration
+
+```bash
+# Production environment setup
+export NODE_ENV=production
+export PORT=3000
+export DATABASE_URI=mongodb://prod-host/galaxy
+```
 
 ## Contributing
 
-### Process
-
 1. Fork the repository
-2. Create your feature branch
-3. Commit your changes
-4. Push to the branch
-5. Create a Pull Request
+2. Create a feature branch
+3. Implement changes
+4. Add tests
+5. Submit pull request
 
-### Guidelines
+## Documentation
 
-1. Follow the code style guide
-2. Add/update tests as needed
-3. Update documentation
-4. Keep PRs focused and atomic
+- Keep API documentation updated
+- Document code changes
+- Update configuration guides
+- Maintain changelog

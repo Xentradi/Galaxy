@@ -1,206 +1,227 @@
 # Security Guide
 
-## Authentication
+This guide outlines security measures and best practices for GalaxyGuard.
 
-### API Key Authentication
-- Required header: `x-api-key`
-- Keys should be at least 32 characters long
-- Store keys securely using environment variables
-- Rotate keys periodically
-- Never expose keys in client-side code or version control
+## Authentication Security
 
-### User Identification
-- Required header: `x-user-id`
-- Used for tracking moderation history
-- Must be consistent across requests for the same user
-- Should be a unique identifier from your platform
+### OAuth 2.0 Implementation
+- Uses Client Credentials grant type
+- JWT-based access tokens
+- Configurable token expiration
+- Scope-based authorization
 
-### OAuth Integration
-- Supports standard OAuth 2.0 flow
-- Secure session management
-- Configurable session expiration
-- HTTPS required in production
-
-## Environment Security
-
-### Production Configuration
-```env
-NODE_ENV=production
-SESSION_SECRET=<strong-random-value>
-API_KEY=<your-api-key>
-OPENAI_KEY=<your-openai-key>
-DATABASE_URI=mongodb+srv://user:pass@host/db
-```
-
-Required security settings:
-- `NODE_ENV`: Set to 'production'
-- `SESSION_SECRET`: Strong random value
-- HTTPS enabled
-- Secure cookie settings
-- Rate limiting configured
-- Request size limits set
-
-### Development Security
-- Use separate API keys for development
-- Never use production credentials in development
-- Maintain separate databases for development/production
-- Use environment-specific configuration files
-
-## Data Security
-
-### Database Security
-1. **Connection**
-   - Use SSL/TLS for database connections
-   - Implement connection pooling
-   - Set appropriate timeouts
-   - Use least-privilege database users
-
-2. **Data Storage**
-   - Hash sensitive data
-   - Encrypt at rest
-   - Regular backups
-   - Data retention policies
-
-3. **Access Control**
-   - Role-based access
-   - IP whitelisting
-   - Regular access audits
-
-### Content Security
-1. **Input Validation**
-   - Sanitize all user input
-   - Validate request parameters
-   - Enforce content size limits
-   - Check content types
-
-2. **Output Encoding**
-   - Encode HTML entities
-   - Sanitize JSON output
-   - Prevent XSS attacks
-   - Set proper content headers
-
-## API Security
-
-### Rate Limiting
+### Token Security
 ```javascript
-// Example rate limit configuration
-{
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests, please try again later'
+// Token configuration in config.js
+oauth: {
+  tokenExpiration: 3600,            // 1 hour
+  refreshTokenExpiration: 2592000,  // 30 days
+  allowedScopes: ["read", "write", "admin"]
 }
 ```
 
+### Client Credential Protection
+- Client secrets are never returned after initial creation
+- Credentials can be revoked through admin API
+- Active status tracking for clients
+- Secure credential storage in database
+
+## API Security
+
+### Authentication Middleware
+- Validates JWT tokens on protected routes
+- Checks token expiration
+- Verifies token signature
+- Validates request scopes
+
 ### Request Validation
-- Validate request body
-- Check content length
-- Verify content type
-- Validate parameters
+- Input sanitization
+- Parameter validation
+- Content-type verification
+- Request size limits
 
-### Error Handling
-- Don't expose internal errors
-- Log securely
-- Return appropriate status codes
-- Maintain audit trail
+### Rate Limiting
+- Per-client rate limits
+- Separate limits for different endpoints
+- Configurable thresholds
+- Automatic blocking of excessive requests
 
-## Best Practices
+## Data Security
 
-### General Security
-1. Keep dependencies updated
-2. Regular security audits
-3. Implement logging and monitoring
-4. Use security headers
-5. Enable CORS appropriately
-6. Regular penetration testing
-
-### Code Security
-1. **Secure Coding**
-   - Input validation
-   - Output encoding
-   - Error handling
-   - Secure defaults
-
-2. **Dependencies**
-   - Regular updates
-   - Security audits
-   - Lock file maintenance
-   - Vulnerability scanning
-
-### Deployment Security
-1. **Server Hardening**
-   - Updated OS/packages
-   - Firewall configuration
-   - Service hardening
-   - Regular updates
-
-2. **Network Security**
-   - HTTPS only
-   - Proper SSL/TLS configuration
-   - IP filtering
-   - DDoS protection
-
-## Security Headers
-
-```javascript
-// Recommended security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'"],
-      imgSrc: ["'self'"],
-      connectSrc: ["'self'", "https://api.openai.com"],
-      fontSrc: ["'self'"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
-    }
-  },
-  referrerPolicy: { policy: 'same-origin' }
-}));
+### Environment Variables
+Required secure configuration:
+```env
+JWT_SECRET=<strong-random-value>
+SESSION_SECRET=<strong-random-value>
+OPENAI_KEY=<api-key>
+DATABASE_URI=<secured-mongodb-uri>
 ```
 
-## Incident Response
+### Database Security
+- MongoDB authentication required
+- Encrypted connections
+- Proper index configuration
+- Access control implementation
 
-### Security Incidents
-1. Identify and isolate
-2. Assess impact
-3. Contain breach
-4. Investigate cause
-5. Implement fixes
-6. Document incident
-7. Review and improve
+### Sensitive Data Handling
+- No plaintext storage of secrets
+- Encrypted sensitive fields
+- Secure credential transmission
+- Limited data exposure in responses
 
-### Recovery Steps
-1. Reset compromised credentials
-2. Update security measures
-3. Patch vulnerabilities
-4. Restore from backup if needed
-5. Update documentation
-6. Notify affected parties
-7. Review security policies
+## Production Security Measures
+
+### Server Configuration
+1. **HTTPS Implementation**
+   - TLS/SSL required
+   - Strong cipher configuration
+   - HSTS implementation
+   - Secure cookie configuration
+
+2. **Headers Security**
+   ```javascript
+   // Recommended security headers
+   app.use(helmet({
+     contentSecurityPolicy: true,
+     crossOriginEmbedderPolicy: true,
+     crossOriginOpenerPolicy: true,
+     crossOriginResourcePolicy: true,
+     dnsPrefetchControl: true,
+     frameguard: true,
+     hidePoweredBy: true,
+     hsts: true,
+     ieNoOpen: true,
+     noSniff: true,
+     originAgentCluster: true,
+     permittedCrossDomainPolicies: true,
+     referrerPolicy: true,
+     xssFilter: true
+   }));
+   ```
+
+3. **Process Security**
+   - Non-root user execution
+   - Limited system permissions
+   - Process isolation
+   - Resource limitations
+
+### Network Security
+
+1. **Firewall Configuration**
+   ```bash
+   # Example UFW configuration
+   ufw default deny incoming
+   ufw default allow outgoing
+   ufw allow ssh
+   ufw allow 3000/tcp  # API port
+   ufw allow 27017/tcp # MongoDB (if remote)
+   ```
+
+2. **Reverse Proxy Setup**
+   - Nginx recommended configuration
+   - Request filtering
+   - SSL termination
+   - Load balancing capability
+
+## Moderation Security
+
+### OpenAI Integration
+- Secure API key handling
+- Request validation
+- Error handling
+- Rate limit compliance
+
+### User Action Security
+- Action verification
+- Audit logging
+- Strike system integrity
+- Appeal process protection
+
+## Security Monitoring
+
+### Logging
+1. **Request Logging**
+   - Access logs
+   - Error logs
+   - Security event logs
+   - Audit trails
+
+2. **Monitoring Setup**
+   - System metrics
+   - Application metrics
+   - Security alerts
+   - Performance monitoring
+
+### Incident Response
+
+1. **Detection**
+   - Automated monitoring
+   - Alert thresholds
+   - Anomaly detection
+   - Security scanning
+
+2. **Response Plan**
+   - Incident classification
+   - Response procedures
+   - Communication plan
+   - Recovery steps
+
+## Development Security
+
+### Code Security
+- Dependency scanning
+- Code analysis tools
+- Security testing
+- Regular updates
+
+### Version Control
+- Protected branches
+- Code review requirements
+- Secure deployment
+- Access control
 
 ## Security Checklist
 
-### Pre-deployment
-- [ ] Environment variables configured
-- [ ] Security headers enabled
-- [ ] Rate limiting configured
-- [ ] Input validation implemented
-- [ ] Error handling secured
-- [ ] Dependencies updated
-- [ ] Security tests passed
-- [ ] SSL/TLS configured
-- [ ] Logging implemented
-- [ ] Monitoring setup
+### Initial Setup
+- [ ] Generate strong secrets
+- [ ] Configure environment variables
+- [ ] Set up MongoDB security
+- [ ] Configure HTTPS
 
 ### Regular Maintenance
 - [ ] Update dependencies
-- [ ] Review logs
-- [ ] Audit access
-- [ ] Test backups
-- [ ] Review configurations
-- [ ] Update documentation
-- [ ] Security training
-- [ ] Penetration testing
+- [ ] Review security logs
+- [ ] Check rate limits
+- [ ] Audit user access
+
+### Monitoring
+- [ ] Set up logging
+- [ ] Configure alerts
+- [ ] Monitor metrics
+- [ ] Review audit trails
+
+## Best Practices
+
+1. **Authentication**
+   - Use strong secrets
+   - Implement rate limiting
+   - Secure token handling
+   - Regular credential rotation
+
+2. **API Security**
+   - Input validation
+   - Output sanitization
+   - Error handling
+   - Request verification
+
+3. **Data Protection**
+   - Encryption at rest
+   - Secure transmission
+   - Access control
+   - Data minimization
+
+4. **Operational Security**
+   - Regular updates
+   - Security monitoring
+   - Incident response
+   - Backup procedures

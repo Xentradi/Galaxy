@@ -1,202 +1,215 @@
 # API Documentation
 
+This document outlines the available API endpoints and how to use them.
+
 ## Authentication
 
-All API endpoints require authentication using:
-- `x-api-key` header: Your API key
-- `x-user-id` header: User identifier
+GalaxyGuard uses OAuth 2.0 with the Client Credentials grant type for API authentication.
 
-## Endpoints
+### Creating Client Credentials
 
-### Content Moderation
+```http
+POST /auth/clients
+```
 
-#### POST /api/moderate
-Moderates content using OpenAI's moderation endpoint.
-
-**Request:**
+Request body:
 ```json
 {
-  "content": "string",
-  "channelType": "normal|sensitive",
-  "channelId": "string"
+  "name": "Your Client Name",
+  "scope": ["read", "write"]  // Optional, defaults to ["read"]
 }
 ```
 
-**Response:**
+Response:
 ```json
 {
-  "message": "Content moderated successfully",
-  "action": "ALLOW|REVIEW|WARN|MUTE|TEMP_BAN|PERM_BAN",
-  "analysis": {
-    "categories": {
-      "hate": "none|low|medium|high",
-      "harassment": "none|low|medium|high",
-      "self-harm": "none|low|medium|high",
-      "sexual": "none|low|medium|high",
-      "violence": "none|low|medium|high"
-    },
-    "highestSeverity": 0.0,
-    "flaggedCategory": "string"
-  },
-  "severity": 0.0
+  "clientId": "generated_client_id",
+  "clientSecret": "generated_client_secret",
+  "name": "Your Client Name",
+  "scope": ["read", "write"]
 }
 ```
 
-### Chat Messages
+**Important**: Store the `clientSecret` securely as it won't be shown again.
 
-#### POST /api/chat/message
-Stores a chat message with moderation results.
+### Obtaining Access Token
 
-**Request:**
+```http
+POST /auth/oauth/token
+```
+
+Request body:
 ```json
 {
-  "content": "string",
-  "channelId": "string",
-  "messageId": "string"
+  "grant_type": "client_credentials"
 }
 ```
 
-**Response:**
+Include client credentials in Basic Auth header:
+```
+Authorization: Basic base64(clientId:clientSecret)
+```
+
+Response:
 ```json
 {
-  "message": "Message stored successfully",
-  "id": "string"
+  "access_token": "jwt_token",
+  "token_type": "Bearer",
+  "expires_in": 3600
 }
 ```
 
-#### GET /api/chat/messages
-Retrieves chat messages for a channel.
+## Message Endpoints
 
-**Query Parameters:**
-- `channelId` (required): Channel identifier
-- `limit` (optional): Number of messages to return (default: 100)
-- `before` (optional): Timestamp to get messages before
-- `after` (optional): Timestamp to get messages after
+### Store Chat Message
 
-**Response:**
+```http
+POST /messages
+Authorization: Bearer <access_token>
+```
+
+Request body:
 ```json
 {
-  "messages": [
-    {
-      "id": "string",
-      "content": "string",
-      "userId": "string",
-      "channelId": "string",
-      "timestamp": "string",
-      "moderationResult": {
-        "action": "string",
-        "severity": 0.0,
-        "categories": {}
-      }
-    }
-  ]
+  "content": "Message content",
+  "channelType": "twitch",
+  "channelId": "channel_identifier",
+  "userId": "user_identifier",
+  "username": "user_name"
 }
 ```
 
-### User History
+### Get Channel Messages
 
-#### GET /api/user/history
-Retrieves moderation history for a user.
+```http
+GET /channels/:channelId/messages
+Authorization: Bearer <access_token>
+```
 
-**Query Parameters:**
-- `userId` (required): User identifier
-- `limit` (optional): Number of records to return (default: 100)
-- `offset` (optional): Number of records to skip (default: 0)
+Query parameters:
+- `limit`: Number of messages to return
+- `before`: Get messages before this timestamp
+- `after`: Get messages after this timestamp
 
-**Response:**
+### Update Message Moderation
+
+```http
+PATCH /messages/:messageId/moderation
+Authorization: Bearer <access_token>
+```
+
+Request body:
 ```json
 {
-  "history": [
-    {
-      "timestamp": "string",
-      "action": "string",
-      "reason": "string",
-      "severity": 0.0,
-      "expiresAt": "string"
-    }
-  ],
-  "stats": {
-    "totalInfractions": 0,
-    "activeStrikes": 0,
-    "trustScore": 0.0
-  }
+  "action": "warn|mute|ban",
+  "reason": "Reason for moderation action",
+  "moderatorId": "moderator_identifier"
 }
 ```
 
-### Channel Moderation Settings
+## Moderation Endpoints
 
-#### GET /api/moderation/settings
-Retrieves moderation settings for a channel.
+### Moderate Content
 
-**Query Parameters:**
-- `channelId` (required): Channel identifier
+```http
+POST /moderate
+Authorization: Bearer <access_token>
+```
 
-**Response:**
+Request body:
 ```json
 {
-  "settings": {
-    "sensitivityLevel": "low|medium|high",
-    "autoModEnabled": true,
-    "customRules": [],
-    "whitelistedUsers": [],
-    "blacklistedTerms": []
-  }
+  "content": "Content to moderate"
 }
 ```
 
-#### PUT /api/moderation/settings
-Updates moderation settings for a channel.
+Response includes moderation scores and recommended actions based on configured thresholds.
 
-**Request:**
+### Real-time Chat Moderation
+
+```http
+POST /chat-moderation
+Authorization: Bearer <access_token>
+```
+
+Request body:
 ```json
 {
-  "channelId": "string",
-  "settings": {
-    "sensitivityLevel": "low|medium|high",
-    "autoModEnabled": true,
-    "customRules": [],
-    "whitelistedUsers": [],
-    "blacklistedTerms": []
-  }
+  "content": "Message content",
+  "channelType": "twitch",
+  "channelId": "channel_identifier",
+  "userId": "user_identifier",
+  "username": "user_name"
 }
 ```
 
-**Response:**
-```json
-{
-  "message": "Settings updated successfully"
-}
+Response includes both moderation results and message storage confirmation.
+
+## Client Implementation Example
+
+Here's an example of how to implement a client using the GalaxyGuard API:
+
+```javascript
+import {MessageService} from './services/messageService';
+import {Mode} from './types';
+
+// Initialize client with credentials
+const client = new GalaxyGuardClient({
+  clientId: 'your_client_id',
+  clientSecret: 'your_client_secret',
+  mode: Mode.MODERATE  // or Mode.STORE for message storage only
+});
+
+const messageService = new MessageService(client);
+
+// Handle a chat message
+await messageService.handleMessage({
+  content: 'Hello world!',
+  channelType: 'twitch',
+  userId: 'user123',
+  username: 'chatuser'
+}, {
+  id: 'channel123'
+});
+
+// Get channel messages
+const messages = await messageService.getChannelMessages('channel123', {
+  limit: 100,
+  before: new Date().toISOString()
+});
+
+// Update moderation status
+await messageService.updateModeration('message123', {
+  action: 'warn',
+  reason: 'Inappropriate language',
+  moderatorId: 'mod123'
+});
 ```
 
-## Error Responses
+## Error Handling
 
-All endpoints may return the following error responses:
+The API uses standard HTTP status codes and returns error responses in the following format:
 
-### 400 Bad Request
 ```json
 {
   "message": "Error description",
-  "error": "Detailed error message"
+  "code": "ERROR_CODE",
+  "details": {}  // Optional additional error details
 }
 ```
 
-### 401 Unauthorized
-```json
-{
-  "message": "Authentication required"
-}
-```
+Common error codes:
+- 400: Bad Request - Invalid parameters or request body
+- 401: Unauthorized - Invalid or missing authentication
+- 403: Forbidden - Insufficient permissions
+- 404: Not Found - Resource not found
+- 429: Too Many Requests - Rate limit exceeded
+- 500: Internal Server Error - Server-side error
 
-### 403 Forbidden
-```json
-{
-  "message": "Insufficient permissions"
-}
-```
+## Rate Limiting
 
-### 500 Internal Server Error
-```json
-{
-  "message": "An unexpected error occurred",
-  "error": "Detailed error message (development mode only)"
-}
+The API implements rate limiting based on client credentials. Current limits are:
+- 100 requests per minute for message endpoints
+- 50 requests per minute for moderation endpoints
+
+Exceeded rate limits will return a 429 status code with a Retry-After header.

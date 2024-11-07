@@ -1,161 +1,190 @@
 # Architecture Overview
 
-## System Architecture
+GalaxyGuard follows a modular architecture with clear separation of concerns. This document outlines the key components and their interactions.
 
-The Galaxy Moderation API follows a modular, layered architecture pattern with clear separation of concerns:
+## System Components
 
-```
-src/
-├── config/         # Configuration and environment setup
-├── controllers/    # Request handlers and business logic
-├── middleware/     # Authentication and request processing
-├── models/         # Data models and constants
-├── repositories/   # Data access layer
-├── routes/         # API route definitions
-└── services/       # External service integrations
-```
+### 1. Authentication System
+- Implements OAuth 2.0 with Client Credentials grant type
+- Manages client applications and access tokens
+- Located in:
+  - `src/routes/auth.js`: Authentication routes
+  - `src/services/authService.js`: Authentication business logic
+  - `src/middleware/authMiddleware.js`: Authentication middleware
+  - `src/models/OAuthClient.js`: OAuth client model
 
-## Core Components
+### 2. Message Management
+- Handles chat message storage and retrieval
+- Components:
+  - `src/routes/chatMessage.js`: Message endpoints
+  - `src/controllers/chatMessageController.js`: Message handling logic
+  - `src/models/ChatMessage.js`: Message data model
+  - `src/repositories/chatMessageRepository.js`: Data access layer
 
-### 1. Content Moderation Engine
-- Located in `src/controllers/moderationController.js`
-- Handles content analysis and action determination
-- Features:
-  - Severity analysis across multiple categories
-  - Context-aware moderation decisions
-  - User history consideration
-  - Action escalation based on previous infractions
+### 3. Moderation System
+- Provides content moderation using OpenAI
+- Components:
+  - `src/routes/moderation.js`: Moderation endpoints
+  - `src/controllers/moderationController.js`: Moderation logic
+  - `src/services/openAIService.js`: OpenAI integration
+  - `src/config/config.js`: Moderation thresholds and rules
 
-### 2. Authentication System
-- Located in `src/middleware/authMiddleware.js`
-- Provides:
-  - API key validation
-  - OAuth integration
-  - Session management
-  - User identification
-
-### 3. Data Layer
-- MongoDB-based storage
-- Repositories:
-  - UserHistory: Tracks user moderation history
-  - ChatMessage: Stores message content and moderation results
-  - OAuthClient: Manages OAuth client credentials
-
-### 4. OpenAI Integration
-- Located in `src/services/openAIService.js`
-- Handles:
-  - Communication with OpenAI's moderation API
-  - Response processing
-  - Error handling
+### 4. User History Tracking
+- Tracks user behavior and moderation history
+- Components:
+  - `src/models/UserHistory.js`: User history model
+  - `src/controllers/userHistoryController.js`: History tracking logic
+  - `src/repositories/userHistoryRepository.js`: History data access
+  - `src/services/userHistoryService.js`: History management
 
 ## Data Flow
 
-1. **Request Processing**
-```mermaid
-graph LR
-    A[Client Request] --> B[Auth Middleware]
-    B --> C[Route Handler]
-    C --> D[Controller]
-    D --> E[Service/Repository]
-    E --> F[Database/External API]
-```
+1. **Message Processing Flow**
+   ```
+   Client Request
+   → Authentication Middleware
+   → Message Controller
+   → Message Repository
+   → Database
+   ```
 
 2. **Moderation Flow**
-```mermaid
-graph TD
-    A[Content Received] --> B[OpenAI Analysis]
-    B --> C[Severity Analysis]
-    C --> D[User History Check]
-    D --> E[Context Evaluation]
-    E --> F[Action Determination]
-    F --> G[History Update]
+   ```
+   Client Request
+   → Authentication Middleware
+   → Moderation Controller
+   → OpenAI Service
+   → User History Update
+   → Response with Moderation Result
+   ```
+
+3. **Authentication Flow**
+   ```
+   Client Credentials
+   → OAuth Token Request
+   → Auth Service
+   → JWT Generation
+   → Access Token Response
+   ```
+
+## Database Schema
+
+### OAuth Clients
+```javascript
+{
+  clientId: String,
+  clientSecret: String,
+  name: String,
+  scope: [String],
+  isActive: Boolean
+}
 ```
 
-## Key Design Patterns
+### Chat Messages
+```javascript
+{
+  content: String,
+  channelId: String,
+  channelType: String,
+  userId: String,
+  username: String,
+  timestamp: Date,
+  moderation: {
+    status: String,
+    action: String,
+    reason: String,
+    moderatorId: String,
+    timestamp: Date
+  }
+}
+```
 
-1. **Repository Pattern**
-- Abstracts data access
-- Centralizes data operations
-- Example: `userHistoryRepository.js`
+### User History
+```javascript
+{
+  userId: String,
+  username: String,
+  channelId: String,
+  strikes: [{
+    type: String,
+    reason: String,
+    timestamp: Date,
+    expiresAt: Date
+  }],
+  moderationActions: [{
+    action: String,
+    reason: String,
+    timestamp: Date,
+    moderatorId: String
+  }]
+}
+```
 
-2. **Service Layer**
-- Encapsulates external service interactions
-- Provides clean interfaces
-- Example: `openAIService.js`
+## Security Measures
 
-3. **Middleware Chain**
-- Sequential request processing
-- Authentication and validation
-- Example: `authMiddleware.js`
-
-4. **Controller-Service Pattern**
-- Separates business logic from request handling
-- Improves testability and maintainability
-- Example: `moderationController.js`
-
-## Configuration Management
-
-- Environment-based configuration
-- Centralized config object
-- Flexible threshold management
-- Located in `src/config/config.js`
-
-## Security Architecture
-
-1. **Authentication Layer**
-- API key validation
-- OAuth support
-- Session management
+1. **Authentication**
+   - OAuth 2.0 implementation
+   - JWT-based access tokens
+   - Secure credential storage
 
 2. **Request Validation**
-- Input sanitization
-- Parameter validation
-- Rate limiting
+   - Input validation middleware
+   - Request rate limiting
+   - Scope-based authorization
 
-3. **Error Handling**
-- Centralized error processing
-- Environment-aware error responses
-- Secure error logging
+3. **Data Protection**
+   - Encrypted sensitive data
+   - Secure MongoDB configuration
+   - Environment variable protection
 
-## Scalability Considerations
+## Integration Points
 
-1. **Database Operations**
-- Indexed collections
-- Efficient query patterns
-- Pagination support
+### 1. Client Integration
+Clients can integrate through:
+- REST API endpoints
+- OAuth 2.0 authentication
+- Provided client libraries (e.g., TwitchBot implementation)
 
-2. **API Design**
-- RESTful endpoints
-- Stateless operations
-- Cache-friendly responses
+### 2. OpenAI Integration
+- Content moderation using OpenAI's moderation API
+- Configurable moderation thresholds
+- Automatic content analysis
 
-3. **Resource Management**
-- Connection pooling
-- Rate limiting
-- Request timeouts
+### 3. Database Integration
+- MongoDB for data persistence
+- Configurable connection settings
+- Optimized queries and indexes
 
-## Monitoring and Logging
+## Performance Considerations
 
-- Request logging
-- Error tracking
-- Performance metrics
-- Moderation analytics
+1. **Caching**
+   - In-memory caching for frequent requests
+   - Database query optimization
+   - Connection pooling
 
-## Future Extensibility
+2. **Scalability**
+   - Stateless architecture
+   - Horizontal scaling capability
+   - Load balancing ready
 
-The architecture supports future enhancements:
+3. **Monitoring**
+   - Request logging
+   - Error tracking
+   - Performance metrics
 
-1. **New Moderation Sources**
-- Pluggable moderation services
-- Multiple AI provider support
-- Custom rule engines
+## Development Guidelines
 
-2. **Additional Features**
-- Real-time notifications
-- Automated appeals
-- Advanced analytics
+1. **Code Organization**
+   - Clear separation of concerns
+   - Modular architecture
+   - Consistent file naming
 
-3. **Integration Options**
-- Webhook support
-- Event streaming
-- Custom plugins
+2. **Error Handling**
+   - Centralized error handling
+   - Detailed error logging
+   - Client-friendly error responses
+
+3. **Testing**
+   - Unit tests for core functionality
+   - Integration tests for API endpoints
+   - Automated testing pipeline

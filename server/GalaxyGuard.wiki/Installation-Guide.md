@@ -1,102 +1,189 @@
 # Installation Guide
 
-This guide provides step-by-step instructions for setting up the Galaxy Moderation API.
+This guide walks you through the process of installing and setting up GalaxyGuard.
 
 ## Prerequisites
 
-- Node.js (Latest LTS version recommended)
-- MongoDB installed and running
-- OpenAI API key
-- Git (for cloning the repository)
+1. **Node.js**
+   - Version 14.x or higher
+   - Download from [nodejs.org](https://nodejs.org/)
+
+2. **MongoDB**
+   - Version 4.x or higher
+   - Download from [mongodb.com](https://www.mongodb.com/try/download/community)
+
+3. **OpenAI API Key**
+   - Required for content moderation
+   - Get from [OpenAI Platform](https://platform.openai.com/)
 
 ## Installation Steps
 
 1. **Clone the Repository**
-```bash
-git clone <repository-url>
-cd GalaxyGuard
-```
+   ```bash
+   git clone https://github.com/yourusername/GalaxyGuard.git
+   cd GalaxyGuard/server
+   ```
 
 2. **Install Dependencies**
-```bash
-npm install
-```
+   ```bash
+   npm install
+   ```
 
-3. **Environment Configuration**
-Create a `.env` file in the root directory using `.env-sample` as a template:
+3. **Configure Environment**
+   ```bash
+   # Copy the sample environment file
+   cp .env-sample .env
+   
+   # Edit the .env file with your configuration
+   nano .env
+   ```
 
-```env
-PORT=3000
-API_KEY=your_api_key_here
-OPENAI_KEY=your_openai_api_key_here
-DATABASE_URI=your_mongodb_uri_here
-SESSION_SECRET=your_session_secret_here
-NODE_ENV=development
-```
-
-Required environment variables:
-- `PORT`: The port number for the server (default: 3000)
-- `API_KEY`: Your custom API key for authentication
-- `OPENAI_KEY`: Your OpenAI API key for moderation services
-- `DATABASE_URI`: MongoDB connection string
-- `SESSION_SECRET`: Secret for session management
-- `NODE_ENV`: Application environment (development/production)
-
-4. **Database Setup**
-- Ensure MongoDB is running on your system
-- The application will automatically create necessary collections on startup
+4. **Configure MongoDB**
+   - Ensure MongoDB is running
+   - Default connection string: `mongodb://localhost:27017/galaxy`
+   - Create database and collections:
+   ```bash
+   mongosh
+   use galaxy
+   ```
 
 5. **Start the Server**
+   ```bash
+   # Development mode
+   npm run dev
+   
+   # Production mode
+   npm start
+   ```
 
-Development mode:
-```bash
-npm run dev
-```
+## Client Setup (TwitchBot)
 
-Production mode:
-```bash
-npm start
-```
+If you're using the included TwitchBot:
+
+1. **Navigate to TwitchBot Directory**
+   ```bash
+   cd ../twitchBot
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+3. **Configure TwitchBot**
+   - Create client credentials using GalaxyGuard API
+   - Configure the bot with obtained credentials
 
 ## Verification
 
 1. **Check Server Status**
-- Open your browser or use curl to verify the server is running:
-```bash
-curl http://localhost:3000/auth/status
-```
+   ```bash
+   # Server should be running on configured port (default: 3000)
+   curl http://localhost:3000/health
+   ```
 
-2. **Test Moderation API**
-- Make a test request to the moderation endpoint:
-```bash
-curl -X POST http://localhost:3000/api/moderate \
-  -H "Content-Type: application/json" \
-  -H "x-api-key: your_api_key_here" \
-  -H "x-user-id: test_user" \
-  -d '{"content": "test message"}'
-```
+2. **Create Client Credentials**
+   ```bash
+   # Using curl (replace with your values)
+   curl -X POST http://localhost:3000/auth/clients \
+     -H "Content-Type: application/json" \
+     -d '{"name":"TestClient","scope":["read","write"]}'
+   ```
 
-## Troubleshooting
+3. **Test Authentication**
+   ```bash
+   # Get access token (replace credentials)
+   curl -X POST http://localhost:3000/auth/oauth/token \
+     -H "Authorization: Basic base64(clientId:clientSecret)" \
+     -H "Content-Type: application/json" \
+     -d '{"grant_type":"client_credentials"}'
+   ```
 
-Common issues and solutions:
+## Common Issues
 
-1. **MongoDB Connection Issues**
-- Verify MongoDB is running: `mongosh`
-- Check DATABASE_URI in .env
-- Ensure network connectivity to MongoDB server
+### MongoDB Connection
+If MongoDB fails to connect:
+1. Verify MongoDB is running
+2. Check connection string in .env
+3. Ensure network connectivity
+4. Check MongoDB authentication if enabled
 
-2. **OpenAI API Issues**
-- Verify OPENAI_KEY is valid
-- Check OpenAI service status
-- Review API response in server logs
+### OpenAI API
+If moderation fails:
+1. Verify OpenAI API key in .env
+2. Check OpenAI service status
+3. Ensure network connectivity
+4. Verify API quota and limits
 
-3. **Port Conflicts**
-- Change PORT in .env if 3000 is in use
-- Check for other services using the same port
+### Port Conflicts
+If the server won't start due to port conflict:
+1. Check if another service is using port 3000
+2. Change PORT in .env file
+3. Stop conflicting service
+
+## Production Deployment
+
+For production deployment:
+
+1. **Environment**
+   - Set NODE_ENV=production
+   - Use secure JWT and session secrets
+   - Configure proper MongoDB authentication
+   - Set up proper logging
+
+2. **Security**
+   - Enable HTTPS
+   - Set up proper firewalls
+   - Configure rate limiting
+   - Implement monitoring
+
+3. **Process Management**
+   - Use PM2 or similar process manager
+   ```bash
+   npm install -g pm2
+   pm2 start src/index.js
+   ```
+
+4. **Monitoring**
+   - Set up application monitoring
+   - Configure error tracking
+   - Implement logging solution
+
+## Updating
+
+To update GalaxyGuard:
+
+1. **Backup**
+   ```bash
+   # Backup database
+   mongodump -d galaxy
+   
+   # Backup configuration
+   cp .env .env.backup
+   ```
+
+2. **Update Code**
+   ```bash
+   git pull
+   npm install
+   ```
+
+3. **Migrate Data**
+   - Check for migration scripts
+   - Run necessary migrations
+   - Verify data integrity
+
+4. **Restart Services**
+   ```bash
+   # Development
+   npm run dev
+   
+   # Production (with PM2)
+   pm2 restart all
+   ```
 
 ## Next Steps
 
-After successful installation:
-1. Review the [Configuration Guide](Configuration-Guide) for system customization
-2. Check the [Security Guide](Security-Guide) for securing your deployment
-3. Explore the [API Documentation](API-Documentation) for available endpoints
+1. Review the [Configuration Guide](Configuration-Guide)
+2. Set up your client using the [API Documentation](API-Documentation)
+3. Understand the system with [Architecture Overview](Architecture-Overview)
