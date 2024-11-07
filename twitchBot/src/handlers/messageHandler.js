@@ -17,9 +17,7 @@ export async function onMessageHandler(channel, tags, message, self) {
   });
 
   message = message.toLowerCase().trim();
-  console.log('Channel: ' + channel);
-  console.log('Tags: ' + JSON.stringify(tags));
-  console.log('Content: ' + message);
+
   console.log(`[${channel}] ${tags['display-name']}(${tags['username']}): ${message}`);
   return;
 }
